@@ -412,8 +412,69 @@ function generateCompositeScore(ohlcvData) {
             adx: Math.round(adxVal * 10) / 10,
             confluenceBull: bullish,
             confluenceBear: bearish,
-        }
+        },
+        reasonText: generateReasonText(score, indicators, trendInfo, volInfo, bullish, bearish),
     };
+}
+
+// Generate human-readable reason in Spanish
+function generateReasonText(score, indicators, trendInfo, volInfo, bullish, bearish) {
+    const reasons = [];
+    const isBuy = score >= 55;
+    const isSell = score < 45;
+
+    // RSI
+    if (indicators.rsi >= 75) reasons.push('RSI sobrevendido (compra)');
+    else if (indicators.rsi <= 25) reasons.push('RSI sobrecomprado (venta)');
+
+    // MACD
+    if (indicators.macd >= 70) reasons.push('MACD cruce alcista');
+    else if (indicators.macd <= 30) reasons.push('MACD cruce bajista');
+
+    // Moving Averages
+    if (indicators.ma >= 70) reasons.push('medias móviles alcistas');
+    else if (indicators.ma <= 30) reasons.push('medias móviles bajistas');
+
+    // Bollinger
+    if (indicators.bollinger >= 70) reasons.push('precio cerca de banda inferior (rebote)');
+    else if (indicators.bollinger <= 30) reasons.push('precio cerca de banda superior (resistencia)');
+
+    // Volume
+    if (indicators.volume >= 70) reasons.push('volumen confirma alza');
+    else if (indicators.volume <= 30) reasons.push('volumen confirma baja');
+
+    // Stochastic
+    if (indicators.stochastic >= 75) reasons.push('estocástico sobrevendido');
+    else if (indicators.stochastic <= 25) reasons.push('estocástico sobrecomprado');
+
+    // Divergence
+    if (indicators.divergence >= 65) reasons.push('divergencia alcista RSI');
+    else if (indicators.divergence <= 35) reasons.push('divergencia bajista RSI');
+
+    // Trend
+    if (trendInfo.label === 'Very Strong' || trendInfo.label === 'Strong') {
+        reasons.push('tendencia ' + (isBuy ? 'alcista' : isSell ? 'bajista' : '') + ' fuerte (ADX)');
+    }
+
+    // Confluence
+    if (bullish >= 6) reasons.push(`${bullish}/9 indicadores alcistas`);
+    if (bearish >= 6) reasons.push(`${bearish}/9 indicadores bajistas`);
+
+    if (reasons.length === 0) {
+        if (score >= 55) reasons.push('señales mixtas con leve tendencia alcista');
+        else if (score <= 45) reasons.push('señales mixtas con leve tendencia bajista');
+        else reasons.push('mercado sin dirección clara');
+    }
+
+    const action = score >= 80 ? '🟢 COMPRAR AHORA' :
+                   score >= 65 ? '🟢 Oportunidad de compra' :
+                   score >= 55 ? '🔵 Compra moderada' :
+                   score >= 45 ? '⚪ Mantener / Esperar' :
+                   score >= 35 ? '🟠 Venta moderada' :
+                   score >= 20 ? '🔴 Oportunidad de venta' :
+                                 '🔴 VENDER AHORA';
+
+    return { action, reasons: reasons.slice(0, 4).join(' · '), detail: reasons };
 }
 
 function classifySignal(score) {

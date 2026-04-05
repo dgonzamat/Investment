@@ -41,6 +41,7 @@ async function loadDashboard() {
     try {
         const data = await fetchAllRecommendations(currentTab);
         allRecommendations = data.recommendations;
+        renderActionPanel(allRecommendations);
         renderRecommendations(sortData(allRecommendations));
         renderAlerts(data.alerts);
         updateMarketSummary(data.recommendations, data.alerts);
@@ -73,6 +74,67 @@ function updateTabCounts(recs) {
     for (const [key, val] of Object.entries(counts)) {
         const el = document.getElementById('count' + key.charAt(0).toUpperCase() + key.slice(1));
         if (el) el.textContent = val;
+    }
+}
+
+// ============ Render Action Panel (COMPRAR / VENDER) ============
+function renderActionPanel(recs) {
+    const buyList = document.getElementById('buyActions');
+    const sellList = document.getElementById('sellActions');
+
+    const buys = recs.filter(r => r.score >= 65).sort((a, b) => b.score - a.score).slice(0, 5);
+    const sells = recs.filter(r => r.score <= 35).sort((a, b) => a.score - b.score).slice(0, 5);
+
+    if (buys.length === 0) {
+        buyList.innerHTML = '<div class="action-empty"><i class="fas fa-pause-circle"></i>Sin señales de compra fuertes en este momento. Espere mejores oportunidades.</div>';
+    } else {
+        buyList.innerHTML = buys.map(r => {
+            const cur = r.currency || 'USD';
+            const name = r.displayName || r.symbol.toUpperCase();
+            const reason = r.reasonText || {};
+            const isStrong = r.score >= 80;
+            const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
+            const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
+            return `
+                <div class="action-card ${isStrong ? 'strong-buy' : ''}" onclick="openDetail('${r.assetType}', '${r.symbol}')">
+                    <div class="action-card-action" style="color:var(--green-strong)">${reason.action || '🟢 Comprar'}</div>
+                    <div class="action-card-top">
+                        <span class="action-card-name">${name}</span>
+                        <span class="action-card-score" style="color:${getSignalColor(r.score)}">${r.score}/100</span>
+                    </div>
+                    <div>
+                        <span class="action-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</span>
+                        <span class="action-card-change ${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%</span>
+                    </div>
+                    ${reason.reasons ? `<div class="action-card-reason"><i class="fas fa-info-circle"></i> ${reason.reasons}</div>` : ''}
+                </div>`;
+        }).join('');
+    }
+
+    if (sells.length === 0) {
+        sellList.innerHTML = '<div class="action-empty"><i class="fas fa-shield-alt"></i>Sin señales de venta fuertes. Posiciones actuales seguras.</div>';
+    } else {
+        sellList.innerHTML = sells.map(r => {
+            const cur = r.currency || 'USD';
+            const name = r.displayName || r.symbol.toUpperCase();
+            const reason = r.reasonText || {};
+            const isStrong = r.score <= 20;
+            const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
+            const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
+            return `
+                <div class="action-card ${isStrong ? 'strong-sell' : ''}" onclick="openDetail('${r.assetType}', '${r.symbol}')">
+                    <div class="action-card-action" style="color:var(--red-strong)">${reason.action || '🔴 Vender'}</div>
+                    <div class="action-card-top">
+                        <span class="action-card-name">${name}</span>
+                        <span class="action-card-score" style="color:${getSignalColor(r.score)}">${r.score}/100</span>
+                    </div>
+                    <div>
+                        <span class="action-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</span>
+                        <span class="action-card-change ${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%</span>
+                    </div>
+                    ${reason.reasons ? `<div class="action-card-reason"><i class="fas fa-exclamation-circle"></i> ${reason.reasons}</div>` : ''}
+                </div>`;
+        }).join('');
     }
 }
 
@@ -145,11 +207,11 @@ function renderRecommendations(recs) {
                         ).join('')}
                     </div>
                 </div>
-                ${meta.trendStrength ? `<div class="rec-card-meta">
-                    <span class="meta-tag"><i class="fas fa-chart-line"></i> ${meta.trendStrength}</span>
-                    <span class="meta-tag"><i class="fas fa-bolt"></i> Vol: ${meta.volatility}</span>
-                    ${meta.confluenceBull >= 5 ? '<span class="meta-tag" style="color:var(--green)"><i class="fas fa-check-double"></i> High Confluence</span>' : ''}
-                    ${meta.confluenceBear >= 5 ? '<span class="meta-tag" style="color:var(--red)"><i class="fas fa-exclamation-double"></i> Bear Confluence</span>' : ''}
+                ${r.reasonText ? `<div class="rec-card-meta">
+                    <span class="meta-tag" style="color:${r.score >= 55 ? 'var(--green)' : r.score <= 45 ? 'var(--red)' : 'var(--yellow)'}">${r.reasonText.action || ''}</span>
+                </div>
+                <div class="rec-card-meta" style="margin-top:2px; opacity:0.7">
+                    <span style="font-size:0.6rem">${r.reasonText.reasons || ''}</span>
                 </div>` : ''}
             </div>`;
     }).join('');
@@ -183,14 +245,20 @@ async function openDetail(assetType, symbol) {
                 <i class="fas ${changeIcon}"></i> ${Math.abs(analysis.changePct).toFixed(2)}%
             </span>`;
 
-        // Meta info
+        // Action + Meta info
         const meta = analysis.meta || {};
+        const reason = analysis.reasonText || {};
+        const actionColor = analysis.score >= 55 ? 'var(--green-strong)' : analysis.score <= 45 ? 'var(--red-strong)' : 'var(--yellow)';
         document.getElementById('detailMeta').innerHTML = `
-            <div class="detail-meta-item"><span>Trend Strength</span><span class="meta-val">${meta.trendStrength || 'N/A'}</span></div>
-            <div class="detail-meta-item"><span>Volatility</span><span class="meta-val">${meta.volatility || 'N/A'} (${meta.volatilityPct || 0}%)</span></div>
+            <div class="detail-meta-item" style="background:${analysis.score >= 65 ? 'rgba(0,200,83,0.1)' : analysis.score <= 35 ? 'rgba(213,0,0,0.1)' : 'var(--bg-primary)'}; border:1px solid ${actionColor}; margin-bottom:8px">
+                <span style="color:${actionColor}; font-weight:700; font-size:0.85rem">${reason.action || 'Mantener'}</span>
+            </div>
+            ${reason.reasons ? `<div class="detail-meta-item" style="font-size:0.68rem; line-height:1.5"><span>${reason.reasons}</span></div>` : ''}
+            <div class="detail-meta-item"><span>Tendencia</span><span class="meta-val">${meta.trendStrength || 'N/A'}</span></div>
+            <div class="detail-meta-item"><span>Volatilidad</span><span class="meta-val">${meta.volatility || 'N/A'} (${meta.volatilityPct || 0}%)</span></div>
             <div class="detail-meta-item"><span>ADX</span><span class="meta-val">${meta.adx || 'N/A'}</span></div>
-            <div class="detail-meta-item"><span>Bull Indicators</span><span class="meta-val" style="color:var(--green)">${meta.confluenceBull || 0}/9</span></div>
-            <div class="detail-meta-item"><span>Bear Indicators</span><span class="meta-val" style="color:var(--red)">${meta.confluenceBear || 0}/9</span></div>
+            <div class="detail-meta-item"><span>Ind. Alcistas</span><span class="meta-val" style="color:var(--green)">${meta.confluenceBull || 0}/9</span></div>
+            <div class="detail-meta-item"><span>Ind. Bajistas</span><span class="meta-val" style="color:var(--red)">${meta.confluenceBear || 0}/9</span></div>
         `;
 
         renderIndicatorBars(analysis.indicators);

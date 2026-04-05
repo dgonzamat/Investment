@@ -92,10 +92,34 @@
     </nav>
 
     <main class="main-content">
+        <!-- IMMEDIATE ACTIONS - Most prominent section -->
+        <section class="action-panel" id="actionPanel">
+            <h2 class="action-title"><i class="fas fa-crosshairs"></i> Acciones Inmediatas</h2>
+            <p class="action-subtitle">Basado en análisis de 9 indicadores técnicos en tiempo real</p>
+            <div class="action-columns" id="actionColumns">
+                <div class="action-col buy-col">
+                    <div class="action-col-header buy-header">
+                        <i class="fas fa-arrow-trend-up"></i> COMPRAR
+                    </div>
+                    <div id="buyActions" class="action-list">
+                        <div class="loading"><i class="fas fa-spinner fa-spin"></i></div>
+                    </div>
+                </div>
+                <div class="action-col sell-col">
+                    <div class="action-col-header sell-header">
+                        <i class="fas fa-arrow-trend-down"></i> VENDER
+                    </div>
+                    <div id="sellActions" class="action-list">
+                        <div class="loading"><i class="fas fa-spinner fa-spin"></i></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <section class="alerts-section">
             <div class="section-header">
-                <h2><i class="fas fa-bell"></i> Active Alerts</h2>
-                <span class="section-hint">Strong buy/sell signals detected</span>
+                <h2><i class="fas fa-bell"></i> Todas las Señales</h2>
+                <span class="section-hint">Resumen de todos los instrumentos analizados</span>
             </div>
             <div class="alerts-grid" id="alertsGrid">
                 <div class="loading"><i class="fas fa-spinner fa-spin"></i> Scanning for signals...</div>

@@ -189,6 +189,7 @@ async function analyzeSymbol(symbol, assetType) {
         signal: analysis.signal,
         indicators: analysis.indicators,
         meta: analysis.meta || {},
+        reasonText: analysis.reasonText || null,
         currentPrice: +current.toFixed(4),
         changePct: +changePct.toFixed(2),
         prices,
