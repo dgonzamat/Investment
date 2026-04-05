@@ -10,6 +10,9 @@ from app.services.technical_analysis import (
     calculate_stochastic,
     calculate_pivot_points,
     calculate_volume_signal,
+    calculate_atr,
+    calculate_adx,
+    detect_divergence,
 )
 
 
@@ -174,6 +177,25 @@ def generate_composite_score(ohlcv_data: list[dict]) -> dict:
     last = ohlcv_data[-1]
     pivot = _pivot_score(last["high"], last["low"], last["close"], closes[-1])
 
+    # New indicators
+    rsi_values = calculate_rsi(closes)
+    div = detect_divergence(closes, rsi_values)
+    div_score = 50.0
+    if div["type"] == "bullish":
+        div_score = 50.0 + div["strength"] * 35
+    elif div["type"] == "bearish":
+        div_score = 50.0 - div["strength"] * 35
+
+    adx_data = calculate_adx(highs, lows, closes)
+    adx_val = _safe(adx_data["adx"], -1, 25.0)
+    pdi = _safe(adx_data["pdi"], -1, 50.0)
+    ndi = _safe(adx_data["ndi"], -1, 50.0)
+    trend_score = 50.0
+    if adx_val > 25 and pdi > ndi:
+        trend_score = 50.0 + min((adx_val - 25) * 1.5, 30)
+    elif adx_val > 25 and ndi > pdi:
+        trend_score = 50.0 - min((adx_val - 25) * 1.5, 30)
+
     w = INDICATOR_WEIGHTS
     composite = (
         ma * w["ma"]
@@ -185,19 +207,50 @@ def generate_composite_score(ohlcv_data: list[dict]) -> dict:
         + pivot * w["pivot"]
     )
 
+    # Trend strength adjustment
+    if adx_val >= 50:
+        multiplier = 1.3
+    elif adx_val >= 35:
+        multiplier = 1.15
+    elif adx_val >= 25:
+        multiplier = 1.0
+    else:
+        multiplier = 0.85
+    deviation = composite - 50.0
+    composite = 50.0 + deviation * multiplier
+
     composite = max(0.0, min(100.0, composite))
+
+    indicators_dict = {
+        "ma": round(ma, 1),
+        "rsi": round(rsi, 1),
+        "macd": round(macd, 1),
+        "bollinger": round(bb, 1),
+        "volume": round(vol, 1),
+        "stochastic": round(stoch, 1),
+        "pivot": round(pivot, 1),
+        "divergence": round(div_score, 1),
+        "trend": round(trend_score, 1),
+    }
+
+    # Confluence bonus
+    bullish_count = sum(1 for v in indicators_dict.values() if v >= 60)
+    bearish_count = sum(1 for v in indicators_dict.values() if v <= 40)
+    if bullish_count >= 6:
+        composite = min(composite + 5, 100.0)
+    if bearish_count >= 6:
+        composite = max(composite - 5, 0.0)
 
     return {
         "score": round(composite, 1),
         "signal": classify_signal(composite),
-        "indicators": {
-            "ma": round(ma, 1),
-            "rsi": round(rsi, 1),
-            "macd": round(macd, 1),
-            "bollinger": round(bb, 1),
-            "volume": round(vol, 1),
-            "stochastic": round(stoch, 1),
-            "pivot": round(pivot, 1),
+        "indicators": indicators_dict,
+        "meta": {
+            "adx": round(adx_val, 1),
+            "trend_strength": "Strong" if adx_val >= 35 else "Moderate" if adx_val >= 25 else "Weak",
+            "divergence": div["type"],
+            "confluence_bull": bullish_count,
+            "confluence_bear": bearish_count,
         },
         "details": None,
     }

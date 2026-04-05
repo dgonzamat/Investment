@@ -134,6 +134,78 @@ def calculate_pivot_points(
     return {"pivot": pivot, "r1": r1, "s1": s1, "r2": r2, "s2": s2}
 
 
+def calculate_atr(
+    highs: list[float], lows: list[float], closes: list[float], period: int = 14
+) -> list[float]:
+    if len(closes) < 2:
+        return [0.0] * len(closes)
+    tr = [highs[0] - lows[0]]
+    for i in range(1, len(closes)):
+        tr.append(max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1]),
+        ))
+    return calculate_ema(tr, period)
+
+
+def calculate_adx(
+    highs: list[float], lows: list[float], closes: list[float], period: int = 14
+) -> dict:
+    n = len(closes)
+    if n < period + 1:
+        return {"adx": [25.0] * n, "pdi": [50.0] * n, "ndi": [50.0] * n}
+
+    plus_dm = [0.0]
+    minus_dm = [0.0]
+    tr = [highs[0] - lows[0]]
+    for i in range(1, n):
+        up = highs[i] - highs[i - 1]
+        down = lows[i - 1] - lows[i]
+        plus_dm.append(up if (up > down and up > 0) else 0.0)
+        minus_dm.append(down if (down > up and down > 0) else 0.0)
+        tr.append(max(highs[i] - lows[i], abs(highs[i] - closes[i - 1]), abs(lows[i] - closes[i - 1])))
+
+    smooth_tr = calculate_ema(tr, period)
+    smooth_plus = calculate_ema(plus_dm, period)
+    smooth_minus = calculate_ema(minus_dm, period)
+
+    pdi = [(p / t * 100 if t > 0 else 0) for p, t in zip(smooth_plus, smooth_tr)]
+    ndi = [(m / t * 100 if t > 0 else 0) for m, t in zip(smooth_minus, smooth_tr)]
+    dx = [(abs(p - n_) / (p + n_) * 100 if (p + n_) > 0 else 0) for p, n_ in zip(pdi, ndi)]
+    adx = calculate_ema(dx, period)
+
+    return {"adx": adx, "pdi": pdi, "ndi": ndi}
+
+
+def detect_divergence(
+    prices: list[float], indicator: list[float], lookback: int = 20
+) -> dict:
+    n = len(prices)
+    if n < lookback or len(indicator) < lookback:
+        return {"type": "none", "strength": 0.0}
+
+    p_slice = prices[-lookback:]
+    i_slice = [v if (v is not None and not (isinstance(v, float) and np.isnan(v))) else 50.0 for v in indicator[-lookback:]]
+
+    half = lookback // 2
+    p_min1, i_at_min1 = min(range(half), key=lambda j: p_slice[j]), 0
+    p_min1_val = p_slice[p_min1]
+    i_at_min1 = i_slice[p_min1]
+    p_min2, i_at_min2 = min(range(half, lookback), key=lambda j: p_slice[j]), 0
+    p_min2_val = p_slice[p_min2]
+    i_at_min2 = i_slice[p_min2]
+
+    p_max1_idx = max(range(half), key=lambda j: p_slice[j])
+    p_max2_idx = max(range(half, lookback), key=lambda j: p_slice[j])
+
+    if p_min2_val < p_min1_val and i_at_min2 > i_at_min1:
+        return {"type": "bullish", "strength": min((i_at_min2 - i_at_min1) / 10, 1.0)}
+    if p_slice[p_max2_idx] > p_slice[p_max1_idx] and i_slice[p_max2_idx] < i_slice[p_max1_idx]:
+        return {"type": "bearish", "strength": min((i_slice[p_max1_idx] - i_slice[p_max2_idx]) / 10, 1.0)}
+    return {"type": "none", "strength": 0.0}
+
+
 def calculate_volume_signal(
     volumes: list[float], prices: list[float], period: int = 20
 ) -> float:
