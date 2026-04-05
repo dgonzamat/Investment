@@ -87,18 +87,20 @@ function renderAlerts(alerts) {
         const isBuy = a.signal.includes('BUY');
         const icon = isBuy ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
         const meta = a.meta || {};
+        const cur = a.currency || 'USD';
+        const name = a.displayName || a.symbol.toUpperCase();
         return `
             <div class="alert-card ${isBuy ? 'buy' : 'sell'}" onclick="openDetail('${a.assetType}', '${a.symbol}')">
                 <div class="alert-header">
-                    <span class="alert-symbol">${a.symbol.toUpperCase()}</span>
-                    <span class="alert-type-badge">${a.assetType}</span>
+                    <span class="alert-symbol">${name}</span>
+                    <span class="alert-type-badge">${getAssetTypeLabel(a.assetType)}</span>
                 </div>
                 <div class="alert-signal" style="color:${getSignalColor(a.score)}">
                     <i class="fas ${icon}"></i> ${formatSignal(a.signal)}
                 </div>
                 <div class="alert-meta">
                     <span>Score: <b>${a.score}</b></span>
-                    <span>$${formatPrice(a.currentPrice)}</span>
+                    <span>${currencySymbol(cur)}${formatPrice(a.currentPrice, cur)}</span>
                 </div>
                 ${meta.trendStrength ? `<div class="alert-trend"><i class="fas fa-chart-line"></i> ${meta.trendStrength} trend | Vol: ${meta.volatility}</div>` : ''}
             </div>`;
@@ -117,16 +119,18 @@ function renderRecommendations(recs) {
         const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
         const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
         const meta = r.meta || {};
+        const cur = r.currency || 'USD';
+        const name = r.displayName || r.symbol.toUpperCase();
         return `
             <div class="rec-card" onclick="openDetail('${r.assetType}', '${r.symbol}')">
                 <div class="rec-card-header">
                     <div>
-                        <div class="rec-card-symbol">${r.symbol.toUpperCase()}</div>
-                        <div class="rec-card-type">${r.assetType}</div>
+                        <div class="rec-card-symbol">${name}</div>
+                        <div class="rec-card-type">${getAssetTypeLabel(r.assetType)}${r.symbol !== name ? ' · ' + r.symbol.toUpperCase() : ''}</div>
                     </div>
                     <span class="signal-badge signal-${r.signal}">${formatSignal(r.signal)}</span>
                 </div>
-                <div class="rec-card-price">$${formatPrice(r.currentPrice)}</div>
+                <div class="rec-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</div>
                 <div class="rec-card-change ${changeClass}">
                     <i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%
                 </div>
@@ -172,8 +176,9 @@ async function openDetail(assetType, symbol) {
 
         const changeClass = analysis.changePct >= 0 ? 'positive' : 'negative';
         const changeIcon = analysis.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
+        const cur = analysis.currency || 'USD';
         document.getElementById('detailPrice').innerHTML = `
-            $${formatPrice(analysis.currentPrice)}
+            ${currencySymbol(cur)}${formatPrice(analysis.currentPrice, cur)}
             <span class="rec-card-change ${changeClass}" style="font-size:1rem;margin-left:8px">
                 <i class="fas ${changeIcon}"></i> ${Math.abs(analysis.changePct).toFixed(2)}%
             </span>`;
@@ -236,11 +241,23 @@ function formatSignal(s) {
     return { STRONG_BUY: 'Strong Buy', BUY: 'Buy', WEAK_BUY: 'Weak Buy', NEUTRAL: 'Neutral', WEAK_SELL: 'Weak Sell', SELL: 'Sell', STRONG_SELL: 'Strong Sell' }[s] || s;
 }
 
-function formatPrice(p) {
+function formatPrice(p, currency) {
+    if (currency === 'CLP') {
+        return p >= 1 ? Math.round(p).toLocaleString('es-CL') : p.toFixed(2);
+    }
     if (p >= 1000) return p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     if (p >= 1) return p.toFixed(2);
     if (p >= 0.01) return p.toFixed(4);
     return p.toFixed(6);
+}
+
+function currencySymbol(currency) {
+    return currency === 'CLP' ? 'CLP$' : '$';
+}
+
+function getAssetTypeLabel(type) {
+    const labels = { stocks: 'US Stock', chile: 'Chile', etfs: 'ETF', crypto: 'Crypto', forex: 'Forex' };
+    return labels[type] || type;
 }
 
 // ============ Init ============
