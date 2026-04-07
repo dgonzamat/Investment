@@ -1,5 +1,5 @@
 let currentTab = 'all';
-let currentSort = 'score';
+let currentSort = 'momentum';
 let allRecommendations = [];
 let pollingInterval = null;
 const POLL_MS = 120000;
@@ -17,15 +17,15 @@ function switchTab(type) {
 function sortCards(method) {
     currentSort = method;
     document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
-    event.target.classList.add('active');
+    if (event && event.target) event.target.classList.add('active');
     renderRecommendations(sortData(allRecommendations));
 }
 
 function sortData(recs) {
     const sorted = [...recs];
     switch (currentSort) {
-        case 'score': sorted.sort((a, b) => b.score - a.score); break;
-        case 'change': sorted.sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct)); break;
+        case 'momentum': sorted.sort((a, b) => b.momentum12m - a.momentum12m); break;
+        case 'change': sorted.sort((a, b) => b.changePct - a.changePct); break;
         case 'name': sorted.sort((a, b) => a.symbol.localeCompare(b.symbol)); break;
     }
     return sorted;
@@ -34,9 +34,11 @@ function sortData(recs) {
 // ============ Load Dashboard ============
 async function loadDashboard() {
     const grid = document.getElementById('recommendationsGrid');
-    const alertsGrid = document.getElementById('alertsGrid');
-    grid.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Analyzing markets...</div>';
-    alertsGrid.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Scanning signals...</div>';
+    const buyList = document.getElementById('buyActions');
+    const sellList = document.getElementById('sellActions');
+    grid.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Aplicando V6 Antonacci...</div>';
+    if (buyList) buyList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
+    if (sellList) sellList.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
 
     try {
         const data = await fetchAllRecommendations(currentTab);
@@ -55,21 +57,22 @@ async function loadDashboard() {
 
 // ============ Market Summary ============
 function updateMarketSummary(recs, alerts) {
-    const bulls = recs.filter(r => r.score >= 55).length;
-    const bears = recs.filter(r => r.score <= 45).length;
-    const neutrals = recs.length - bulls - bears;
-    const avg = recs.length > 0 ? recs.reduce((s, r) => s + r.score, 0) / recs.length : 50;
+    const inMarket = recs.filter(r => r.inMarket).length;
+    const inCash = recs.length - inMarket;
+    const avgMomentum = recs.length > 0
+        ? recs.reduce((s, r) => s + r.momentum12m, 0) / recs.length
+        : 0;
 
-    document.getElementById('bullCount').textContent = bulls;
-    document.getElementById('bearCount').textContent = bears;
-    document.getElementById('neutralCount').textContent = neutrals;
-    document.getElementById('avgScore').textContent = avg.toFixed(1);
-    document.getElementById('avgScore').style.color = getSignalColor(avg);
+    document.getElementById('bullCount').textContent = inMarket;
+    document.getElementById('bearCount').textContent = inCash;
+    document.getElementById('neutralCount').textContent = alerts.length;
+    document.getElementById('avgScore').textContent = avgMomentum.toFixed(1) + '%';
+    document.getElementById('avgScore').style.color = avgMomentum > 0 ? 'var(--green)' : 'var(--red)';
     document.getElementById('alertCount').textContent = alerts.length;
 }
 
 function updateTabCounts(recs) {
-    const counts = { all: recs.length, stocks: 0, etfs: 0, crypto: 0, forex: 0 };
+    const counts = { all: recs.length, stocks: 0, etfs: 0, crypto: 0, forex: 0, chile: 0 };
     recs.forEach(r => { if (counts[r.assetType] !== undefined) counts[r.assetType]++; });
     for (const [key, val] of Object.entries(counts)) {
         const el = document.getElementById('count' + key.charAt(0).toUpperCase() + key.slice(1));
@@ -77,78 +80,65 @@ function updateTabCounts(recs) {
     }
 }
 
-// ============ Render Action Panel (COMPRAR / VENDER) ============
+// ============ Render Action Panel (V6 Antonacci - Fresh Signals) ============
 function renderActionPanel(recs) {
     const buyList = document.getElementById('buyActions');
     const sellList = document.getElementById('sellActions');
+    if (!buyList || !sellList) return;
 
-    const buys = recs.filter(r => r.score >= 65).sort((a, b) => b.score - a.score).slice(0, 5);
-    const sells = recs.filter(r => r.score <= 35).sort((a, b) => a.score - b.score).slice(0, 5);
+    // Fresh BUY signals: momentum just turned positive
+    const freshBuys = recs.filter(r => r.v6.freshSignal && r.inMarket);
+    // Fresh SELL signals: momentum just turned negative
+    const freshSells = recs.filter(r => r.v6.freshSignal && !r.inMarket);
 
-    if (buys.length === 0) {
-        buyList.innerHTML = '<div class="action-empty"><i class="fas fa-pause-circle"></i>Sin señales de compra fuertes en este momento. Espere mejores oportunidades.</div>';
+    if (freshBuys.length === 0) {
+        buyList.innerHTML = '<div class="action-empty"><i class="fas fa-pause-circle"></i>Sin nuevas señales de compra. Los instrumentos en tendencia alcista ya están "EN MERCADO" (revisa abajo).</div>';
     } else {
-        buyList.innerHTML = buys.map(r => {
-            const cur = r.currency || 'USD';
-            const name = r.displayName || r.symbol.toUpperCase();
-            const reason = r.reasonText || {};
-            const isStrong = r.score >= 80;
-            const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
-            const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
-            return `
-                <div class="action-card ${isStrong ? 'strong-buy' : ''}" onclick="openDetail('${r.assetType}', '${r.symbol}')">
-                    <div class="action-card-action" style="color:var(--green-strong)">${reason.action || '🟢 Comprar'}</div>
-                    <div class="action-card-top">
-                        <span class="action-card-name">${name}</span>
-                        <span class="action-card-score" style="color:${getSignalColor(r.score)}">${r.score}/100</span>
-                    </div>
-                    <div>
-                        <span class="action-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</span>
-                        <span class="action-card-change ${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%</span>
-                    </div>
-                    ${reason.reasons ? `<div class="action-card-reason"><i class="fas fa-info-circle"></i> ${reason.reasons}</div>` : ''}
-                </div>`;
-        }).join('');
+        buyList.innerHTML = freshBuys.map(r => actionCard(r, true)).join('');
     }
 
-    if (sells.length === 0) {
-        sellList.innerHTML = '<div class="action-empty"><i class="fas fa-shield-alt"></i>Sin señales de venta fuertes. Posiciones actuales seguras.</div>';
+    if (freshSells.length === 0) {
+        sellList.innerHTML = '<div class="action-empty"><i class="fas fa-shield-alt"></i>Sin nuevas señales de venta. Los instrumentos sin tendencia ya están "EN CASH".</div>';
     } else {
-        sellList.innerHTML = sells.map(r => {
-            const cur = r.currency || 'USD';
-            const name = r.displayName || r.symbol.toUpperCase();
-            const reason = r.reasonText || {};
-            const isStrong = r.score <= 20;
-            const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
-            const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
-            return `
-                <div class="action-card ${isStrong ? 'strong-sell' : ''}" onclick="openDetail('${r.assetType}', '${r.symbol}')">
-                    <div class="action-card-action" style="color:var(--red-strong)">${reason.action || '🔴 Vender'}</div>
-                    <div class="action-card-top">
-                        <span class="action-card-name">${name}</span>
-                        <span class="action-card-score" style="color:${getSignalColor(r.score)}">${r.score}/100</span>
-                    </div>
-                    <div>
-                        <span class="action-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</span>
-                        <span class="action-card-change ${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%</span>
-                    </div>
-                    ${reason.reasons ? `<div class="action-card-reason"><i class="fas fa-exclamation-circle"></i> ${reason.reasons}</div>` : ''}
-                </div>`;
-        }).join('');
+        sellList.innerHTML = freshSells.map(r => actionCard(r, false)).join('');
     }
 }
 
-// ============ Render Alerts ============
+function actionCard(r, isBuy) {
+    const cur = r.currency || 'USD';
+    const name = r.displayName || r.symbol.toUpperCase();
+    const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
+    const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
+    const cssClass = isBuy ? 'strong-buy' : 'strong-sell';
+    const color = isBuy ? 'var(--green-strong)' : 'var(--red-strong)';
+    const action = isBuy ? '🟢 ENTRAR AL MERCADO' : '🔴 SALIR A CASH';
+    const icon = isBuy ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
+    return `
+        <div class="action-card ${cssClass}" onclick="openDetail('${r.assetType}', '${r.symbol}')">
+            <div class="action-card-action" style="color:${color}"><i class="fas ${icon}"></i> ${action}</div>
+            <div class="action-card-top">
+                <span class="action-card-name">${name}</span>
+                <span class="action-card-score" style="color:${color}">${r.momentum12m >= 0 ? '+' : ''}${r.momentum12m.toFixed(1)}%</span>
+            </div>
+            <div>
+                <span class="action-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</span>
+                <span class="action-card-change ${changeClass}"><i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%</span>
+            </div>
+            <div class="action-card-reason"><i class="fas fa-bolt"></i> ${r.v6.reason}</div>
+        </div>`;
+}
+
+// ============ Render Alerts (Same as fresh signals) ============
 function renderAlerts(alerts) {
     const grid = document.getElementById('alertsGrid');
+    if (!grid) return;
     if (!alerts.length) {
-        grid.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>No strong signals detected - market is balanced</p></div>';
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-check-circle"></i><p>Sin cambios de tendencia recientes - el mercado está estable según el modelo V6</p></div>';
         return;
     }
     grid.innerHTML = alerts.slice(0, 12).map(a => {
-        const isBuy = a.signal.includes('BUY');
+        const isBuy = a.inMarket;
         const icon = isBuy ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down';
-        const meta = a.meta || {};
         const cur = a.currency || 'USD';
         const name = a.displayName || a.symbol.toUpperCase();
         return `
@@ -157,62 +147,77 @@ function renderAlerts(alerts) {
                     <span class="alert-symbol">${name}</span>
                     <span class="alert-type-badge">${getAssetTypeLabel(a.assetType)}</span>
                 </div>
-                <div class="alert-signal" style="color:${getSignalColor(a.score)}">
-                    <i class="fas ${icon}"></i> ${formatSignal(a.signal)}
+                <div class="alert-signal" style="color:${isBuy ? 'var(--green)' : 'var(--red)'}">
+                    <i class="fas ${icon}"></i> ${isBuy ? 'NUEVA COMPRA' : 'NUEVA VENTA'}
                 </div>
                 <div class="alert-meta">
-                    <span>Score: <b>${a.score}</b></span>
+                    <span>Mom 12m: <b>${a.momentum12m >= 0 ? '+' : ''}${a.momentum12m.toFixed(1)}%</b></span>
                     <span>${currencySymbol(cur)}${formatPrice(a.currentPrice, cur)}</span>
                 </div>
-                ${meta.trendStrength ? `<div class="alert-trend"><i class="fas fa-chart-line"></i> ${meta.trendStrength} trend | Vol: ${meta.volatility}</div>` : ''}
+                <div class="alert-trend"><i class="fas fa-info-circle"></i> ${a.v6.reason}</div>
             </div>`;
     }).join('');
 }
 
-// ============ Render Recommendations ============
+// ============ Render All Recommendations (full list with V6 status) ============
 function renderRecommendations(recs) {
     const grid = document.getElementById('recommendationsGrid');
     if (!recs.length) {
-        grid.innerHTML = '<div class="empty-state"><i class="fas fa-chart-bar"></i><p>No data available</p></div>';
+        grid.innerHTML = '<div class="empty-state"><i class="fas fa-chart-bar"></i><p>Sin datos disponibles</p></div>';
         return;
     }
     grid.innerHTML = recs.map(r => {
-        const color = getSignalColor(r.score);
-        const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
-        const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
-        const meta = r.meta || {};
         const cur = r.currency || 'USD';
         const name = r.displayName || r.symbol.toUpperCase();
+        const changeClass = r.changePct >= 0 ? 'positive' : 'negative';
+        const changeIcon = r.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
+
+        // V6 status: green if in market, red if cash
+        const v6Status = r.inMarket ? 'EN MERCADO' : 'EN CASH';
+        const v6Color = r.inMarket ? 'var(--green-strong)' : 'var(--text-muted)';
+        const v6Bg = r.inMarket ? 'rgba(0,200,83,0.15)' : 'rgba(110,118,129,0.15)';
+        const v6Icon = r.inMarket ? 'fa-circle-check' : 'fa-circle-pause';
+
+        // Momentum bar: scale -50% to +50%
+        const momentumPct = Math.max(-50, Math.min(50, r.momentum12m));
+        const barWidth = (Math.abs(momentumPct) / 50) * 50; // 0-50% width
+        const barOffset = momentumPct >= 0 ? 50 : 50 - barWidth;
+        const barColor = momentumPct >= 0 ? 'var(--green)' : 'var(--red)';
+
+        const freshBadge = r.v6.freshSignal
+            ? `<span class="fresh-badge ${r.inMarket ? 'fresh-buy' : 'fresh-sell'}">⚡ NUEVO</span>`
+            : '';
+
         return `
             <div class="rec-card" onclick="openDetail('${r.assetType}', '${r.symbol}')">
                 <div class="rec-card-header">
                     <div>
-                        <div class="rec-card-symbol">${name}</div>
+                        <div class="rec-card-symbol">${name} ${freshBadge}</div>
                         <div class="rec-card-type">${getAssetTypeLabel(r.assetType)}${r.symbol !== name ? ' · ' + r.symbol.toUpperCase() : ''}</div>
                     </div>
-                    <span class="signal-badge signal-${r.signal}">${formatSignal(r.signal)}</span>
+                    <span class="v6-badge" style="background:${v6Bg}; color:${v6Color}">
+                        <i class="fas ${v6Icon}"></i> ${v6Status}
+                    </span>
                 </div>
                 <div class="rec-card-price">${currencySymbol(cur)}${formatPrice(r.currentPrice, cur)}</div>
                 <div class="rec-card-change ${changeClass}">
-                    <i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}%
+                    <i class="fas ${changeIcon}"></i> ${Math.abs(r.changePct).toFixed(2)}% hoy
                 </div>
-                <div class="rec-card-score-bar">
-                    <div class="rec-card-score-fill" style="width:${r.score}%; background:${color}"></div>
-                </div>
-                <div class="rec-card-bottom">
-                    <span class="rec-card-score-label">Score: ${r.score}/100</span>
-                    <div class="mini-indicators">
-                        ${Object.entries(r.indicators).slice(0, 5).map(([k, v]) =>
-                            `<span class="mini-ind" style="color:${getSignalColor(v)}" title="${k}: ${v}">${k.slice(0,2).toUpperCase()}</span>`
-                        ).join('')}
+                <div class="momentum-bar-container">
+                    <div class="momentum-bar-track">
+                        <div class="momentum-bar-center"></div>
+                        <div class="momentum-bar-fill" style="left:${barOffset}%; width:${barWidth}%; background:${barColor}"></div>
+                    </div>
+                    <div class="momentum-labels">
+                        <span>-50%</span>
+                        <span class="momentum-value" style="color:${barColor}">12m: ${r.momentum12m >= 0 ? '+' : ''}${r.momentum12m.toFixed(1)}%</span>
+                        <span>+50%</span>
                     </div>
                 </div>
-                ${r.reasonText ? `<div class="rec-card-meta">
-                    <span class="meta-tag" style="color:${r.score >= 55 ? 'var(--green)' : r.score <= 45 ? 'var(--red)' : 'var(--yellow)'}">${r.reasonText.action || ''}</span>
+                <div class="rec-card-bottom">
+                    <span class="rec-card-score-label">3m: ${r.momentum3m >= 0 ? '+' : ''}${r.momentum3m.toFixed(1)}%</span>
+                    <span class="rec-card-score-label">Conf: ${r.v6.confidence}%</span>
                 </div>
-                <div class="rec-card-meta" style="margin-top:2px; opacity:0.7">
-                    <span style="font-size:0.6rem">${r.reasonText.reasons || ''}</span>
-                </div>` : ''}
             </div>`;
     }).join('');
 }
@@ -222,7 +227,7 @@ async function openDetail(assetType, symbol) {
     const panel = document.getElementById('detailPanel');
     panel.style.display = 'block';
     panel.scrollIntoView({ behavior: 'smooth' });
-    document.getElementById('detailTitle').textContent = `${symbol.toUpperCase()} - Detailed Analysis`;
+    document.getElementById('detailTitle').textContent = `${symbol.toUpperCase()} - Análisis Detallado`;
     document.getElementById('indicatorBars').innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i></div>';
     document.getElementById('detailMeta').innerHTML = '';
 
@@ -230,11 +235,13 @@ async function openDetail(assetType, symbol) {
         const analysis = await analyzeSymbol(symbol, assetType);
         if (!analysis) throw new Error('No data');
 
-        renderGauge('gaugeChart', analysis.score);
+        // V6 confidence as the main gauge (not the technical score)
+        renderGauge('gaugeChart', analysis.v6.confidence);
 
         const signalEl = document.getElementById('detailSignal');
-        signalEl.textContent = formatSignal(analysis.signal);
-        signalEl.className = `signal-badge signal-${analysis.signal}`;
+        const v6Status = analysis.inMarket ? 'EN MERCADO' : 'EN CASH';
+        signalEl.textContent = v6Status;
+        signalEl.className = `signal-badge ${analysis.inMarket ? 'signal-STRONG_BUY' : 'signal-SELL'}`;
 
         const changeClass = analysis.changePct >= 0 ? 'positive' : 'negative';
         const changeIcon = analysis.changePct >= 0 ? 'fa-caret-up' : 'fa-caret-down';
@@ -245,22 +252,21 @@ async function openDetail(assetType, symbol) {
                 <i class="fas ${changeIcon}"></i> ${Math.abs(analysis.changePct).toFixed(2)}%
             </span>`;
 
-        // Action + Meta info
-        const meta = analysis.meta || {};
-        const reason = analysis.reasonText || {};
-        const actionColor = analysis.score >= 55 ? 'var(--green-strong)' : analysis.score <= 45 ? 'var(--red-strong)' : 'var(--yellow)';
+        // V6 metadata - the PRIMARY model
+        const actionColor = analysis.inMarket ? 'var(--green-strong)' : 'var(--red-strong)';
         document.getElementById('detailMeta').innerHTML = `
-            <div class="detail-meta-item" style="background:${analysis.score >= 65 ? 'rgba(0,200,83,0.1)' : analysis.score <= 35 ? 'rgba(213,0,0,0.1)' : 'var(--bg-primary)'}; border:1px solid ${actionColor}; margin-bottom:8px">
-                <span style="color:${actionColor}; font-weight:700; font-size:0.85rem">${reason.action || 'Mantener'}</span>
+            <div class="detail-meta-item" style="background:${analysis.inMarket ? 'rgba(0,200,83,0.1)' : 'rgba(213,0,0,0.1)'}; border:1px solid ${actionColor}; margin-bottom:8px; padding:8px 12px;">
+                <span style="color:${actionColor}; font-weight:700; font-size:0.85rem">${analysis.v6.reason}</span>
             </div>
-            ${reason.reasons ? `<div class="detail-meta-item" style="font-size:0.68rem; line-height:1.5"><span>${reason.reasons}</span></div>` : ''}
-            <div class="detail-meta-item"><span>Tendencia</span><span class="meta-val">${meta.trendStrength || 'N/A'}</span></div>
-            <div class="detail-meta-item"><span>Volatilidad</span><span class="meta-val">${meta.volatility || 'N/A'} (${meta.volatilityPct || 0}%)</span></div>
-            <div class="detail-meta-item"><span>ADX</span><span class="meta-val">${meta.adx || 'N/A'}</span></div>
-            <div class="detail-meta-item"><span>Ind. Alcistas</span><span class="meta-val" style="color:var(--green)">${meta.confluenceBull || 0}/9</span></div>
-            <div class="detail-meta-item"><span>Ind. Bajistas</span><span class="meta-val" style="color:var(--red)">${meta.confluenceBear || 0}/9</span></div>
+            <div class="detail-meta-item"><span>Modelo</span><span class="meta-val">V6 Antonacci</span></div>
+            <div class="detail-meta-item"><span>Momentum 12m</span><span class="meta-val" style="color:${analysis.momentum12m >= 0 ? 'var(--green)' : 'var(--red)'}">${analysis.momentum12m >= 0 ? '+' : ''}${analysis.momentum12m.toFixed(2)}%</span></div>
+            <div class="detail-meta-item"><span>Momentum 6m</span><span class="meta-val">${(analysis.v6.momentum6m || 0) >= 0 ? '+' : ''}${(analysis.v6.momentum6m || 0).toFixed(2)}%</span></div>
+            <div class="detail-meta-item"><span>Momentum 3m</span><span class="meta-val">${analysis.momentum3m >= 0 ? '+' : ''}${analysis.momentum3m.toFixed(2)}%</span></div>
+            <div class="detail-meta-item"><span>Confianza</span><span class="meta-val">${analysis.v6.confidence}%</span></div>
+            <div class="detail-meta-item"><span>Señal nueva</span><span class="meta-val">${analysis.v6.freshSignal ? '⚡ Sí' : '─ No'}</span></div>
         `;
 
+        // Educational technical indicators (NOT used for buy/sell)
         renderIndicatorBars(analysis.indicators);
         renderPriceChart('priceChart', analysis.prices);
         renderRSIChart('rsiChart', analysis.prices);
@@ -271,24 +277,21 @@ async function openDetail(assetType, symbol) {
 }
 
 function renderIndicatorBars(indicators) {
-    const names = { ma: 'Moving Avg', rsi: 'RSI', macd: 'MACD', bollinger: 'Bollinger', volume: 'Volume', stochastic: 'Stochastic', pivot: 'Pivot Pts', divergence: 'Divergence', trend: 'ADX Trend' };
-    const weights = { ma: '18%', macd: '18%', rsi: '14%', bollinger: '12%', volume: '12%', stochastic: '8%', pivot: '5%', divergence: '8%', trend: '5%' };
-    document.getElementById('indicatorBars').innerHTML = Object.entries(indicators).map(([key, val]) => {
+    const names = { ma: 'Medias Móviles', rsi: 'RSI', macd: 'MACD', bollinger: 'Bollinger', volume: 'Volumen', stochastic: 'Stochastic', pivot: 'Pivot Pts', divergence: 'Divergencia', trend: 'ADX Trend' };
+    const container = document.getElementById('indicatorBars');
+    const note = '<div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:12px; padding:8px; background:rgba(255,214,0,0.05); border-left:3px solid var(--yellow);"><i class="fas fa-info-circle"></i> Estos indicadores son <b>educativos solamente</b>. La señal de compra/venta viene del modelo V6 (Antonacci), validado por 100 años de datos académicos.</div>';
+    container.innerHTML = note + Object.entries(indicators).map(([key, val]) => {
         const color = getSignalColor(val);
-        const signal = val >= 65 ? 'BUY' : val <= 35 ? 'SELL' : 'HOLD';
-        const sigColor = val >= 65 ? '#4caf50' : val <= 35 ? '#f44336' : '#ffd600';
         return `
             <div class="indicator-bar">
                 <div class="indicator-info">
                     <span class="label">${names[key] || key}</span>
-                    <span class="weight">${weights[key] || ''}</span>
                 </div>
                 <div class="bar-bg">
                     <div class="bar-fill" style="width:${val}%; background:${color}"></div>
                 </div>
                 <div class="indicator-values">
                     <span class="value" style="color:${color}">${val}</span>
-                    <span class="signal-mini" style="color:${sigColor}">${signal}</span>
                 </div>
             </div>`;
     }).join('');
@@ -306,7 +309,7 @@ function searchSymbol() {
 
 // ============ Helpers ============
 function formatSignal(s) {
-    return { STRONG_BUY: 'Strong Buy', BUY: 'Buy', WEAK_BUY: 'Weak Buy', NEUTRAL: 'Neutral', WEAK_SELL: 'Weak Sell', SELL: 'Sell', STRONG_SELL: 'Strong Sell' }[s] || s;
+    return { IN_MARKET: 'En Mercado', IN_CASH: 'En Cash', FRESH_BUY: 'Nueva Compra', FRESH_SELL: 'Nueva Venta', INSUFFICIENT_DATA: 'Sin Datos' }[s] || s;
 }
 
 function formatPrice(p, currency) {

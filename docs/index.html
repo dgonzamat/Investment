@@ -14,7 +14,7 @@
     <header class="header">
         <div class="header-left">
             <h1><i class="fas fa-chart-line"></i> InvestPro</h1>
-            <span class="subtitle">Advanced Technical Analysis Engine</span>
+            <span class="subtitle">V6 Antonacci Momentum Model · Validado 100 años</span>
         </div>
         <div class="header-center">
             <div class="search-box">
@@ -43,29 +43,29 @@
 
     <!-- Market Summary Bar -->
     <div class="market-summary" id="marketSummary">
-        <div class="summary-item" id="summaryBulls">
-            <i class="fas fa-arrow-trend-up"></i>
-            <span class="summary-label">Bullish</span>
+        <div class="summary-item">
+            <i class="fas fa-circle-check"></i>
+            <span class="summary-label">En Mercado</span>
             <span class="summary-value green" id="bullCount">-</span>
         </div>
-        <div class="summary-item" id="summaryBears">
-            <i class="fas fa-arrow-trend-down"></i>
-            <span class="summary-label">Bearish</span>
+        <div class="summary-item">
+            <i class="fas fa-circle-pause"></i>
+            <span class="summary-label">En Cash</span>
             <span class="summary-value red" id="bearCount">-</span>
         </div>
-        <div class="summary-item" id="summaryNeutral">
-            <i class="fas fa-minus"></i>
-            <span class="summary-label">Neutral</span>
+        <div class="summary-item">
+            <i class="fas fa-bolt"></i>
+            <span class="summary-label">Señales Nuevas</span>
             <span class="summary-value yellow" id="neutralCount">-</span>
         </div>
         <div class="summary-item">
             <i class="fas fa-gauge-high"></i>
-            <span class="summary-label">Avg Score</span>
+            <span class="summary-label">Mom 12m Avg</span>
             <span class="summary-value" id="avgScore">-</span>
         </div>
         <div class="summary-item">
-            <i class="fas fa-bolt"></i>
-            <span class="summary-label">Alerts</span>
+            <i class="fas fa-rocket"></i>
+            <span class="summary-label">Alertas</span>
             <span class="summary-value orange" id="alertCount">-</span>
         </div>
     </div>
@@ -92,14 +92,14 @@
     </nav>
 
     <main class="main-content">
-        <!-- IMMEDIATE ACTIONS - Most prominent section -->
+        <!-- IMMEDIATE ACTIONS - V6 Antonacci Fresh Signals -->
         <section class="action-panel" id="actionPanel">
-            <h2 class="action-title"><i class="fas fa-crosshairs"></i> Acciones Inmediatas</h2>
-            <p class="action-subtitle">Basado en análisis de 9 indicadores técnicos en tiempo real</p>
+            <h2 class="action-title"><i class="fas fa-crosshairs"></i> Señales Nuevas - Modelo V6 Antonacci</h2>
+            <p class="action-subtitle">Solo aparecen instrumentos cuyo momentum 12m acaba de cambiar de dirección · Validado por 100 años de datos académicos</p>
             <div class="action-columns" id="actionColumns">
                 <div class="action-col buy-col">
                     <div class="action-col-header buy-header">
-                        <i class="fas fa-arrow-trend-up"></i> COMPRAR
+                        <i class="fas fa-arrow-trend-up"></i> ENTRAR AL MERCADO
                     </div>
                     <div id="buyActions" class="action-list">
                         <div class="loading"><i class="fas fa-spinner fa-spin"></i></div>
@@ -107,7 +107,7 @@
                 </div>
                 <div class="action-col sell-col">
                     <div class="action-col-header sell-header">
-                        <i class="fas fa-arrow-trend-down"></i> VENDER
+                        <i class="fas fa-arrow-trend-down"></i> SALIR A CASH
                     </div>
                     <div id="sellActions" class="action-list">
                         <div class="loading"><i class="fas fa-spinner fa-spin"></i></div>
@@ -128,10 +128,10 @@
 
         <section class="recommendations-section">
             <div class="section-header">
-                <h2><i class="fas fa-star"></i> Market Analysis</h2>
+                <h2><i class="fas fa-star"></i> Estado Actual del Portafolio</h2>
                 <div class="sort-controls">
-                    <button class="sort-btn active" onclick="sortCards('score')">By Score</button>
-                    <button class="sort-btn" onclick="sortCards('change')">By Change</button>
+                    <button class="sort-btn active" onclick="sortCards('momentum')">Por Momentum</button>
+                    <button class="sort-btn" onclick="sortCards('change')">Por Cambio %</button>
                     <button class="sort-btn" onclick="sortCards('name')">A-Z</button>
                 </div>
             </div>
@@ -171,14 +171,16 @@
     <footer class="footer">
         <p><i class="fas fa-shield-alt"></i> InvestPro v2.0 &copy; 2026 - Educational Tool</p>
         <p class="footer-disclaimer">
-            9 technical indicators: SMA/EMA, RSI, MACD, Bollinger Bands, Stochastic, Volume, Pivot Points,
-            RSI Divergence, ADX Trend. Includes Chilean market: SQM, Falabella, Cencosud, Copec, BCI, Banco de Chile,
-            CCU, Enel, CMPC, ECH ETF, UF, CLP/USD. Data: CoinGecko, Frankfurter, mindicador.cl.
-            This is NOT financial advice. All investments carry risk.
+            <b>Modelo principal: V6 Antonacci</b> - Filtro de momentum absoluto 12 meses, validado por
+            <a href="https://github.com/alexjansenhome/GEM" style="color:var(--accent)">research académico desde 1926</a>.
+            Indicadores técnicos (RSI, MACD, Bollinger, etc.) son educativos solamente.
+            Mercados: Chile (SQM, Falabella, Cencosud, Copec, BCI, etc.), US Stocks/ETFs, Crypto, Forex.
+            Datos: CoinGecko, Frankfurter, mindicador.cl. NO es asesoramiento financiero.
         </p>
     </footer>
 
     <script src="js/technical-analysis.js"></script>
+    <script src="js/strategy_v6.js"></script>
     <script src="js/data-service.js"></script>
     <script src="js/charts.js"></script>
     <script src="js/app.js"></script>

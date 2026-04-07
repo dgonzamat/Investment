@@ -174,7 +174,12 @@ async function analyzeSymbol(symbol, assetType) {
     const prices = await fetchMarketData(assetType, symbol);
     if (!prices || prices.length < 5) return null;
 
-    const analysis = generateCompositeScore(prices);
+    // PRIMARY MODEL: V6 Antonacci (validated by Monte Carlo + 100 years academic)
+    const v6 = evaluateV6(prices);
+
+    // SECONDARY: composite score for educational technical analysis (NOT used for buy/sell)
+    const technical = generateCompositeScore(prices);
+
     const current = prices[prices.length - 1].close;
     const prev = prices.length > 1 ? prices[prices.length - 2].close : current;
     const changePct = prev ? ((current - prev) / prev * 100) : 0;
@@ -185,11 +190,21 @@ async function analyzeSymbol(symbol, assetType) {
 
     return {
         symbol, assetType, displayName, currency,
-        score: analysis.score,
-        signal: analysis.signal,
-        indicators: analysis.indicators,
-        meta: analysis.meta || {},
-        reasonText: analysis.reasonText || null,
+        // V6 signals (PRIMARY)
+        v6,  // {action, inMarket, momentum12m, signal, confidence, reason, freshSignal}
+        // Map to compatible fields for legacy UI
+        score: v6.confidence,  // 0-100 confidence in current signal
+        signal: v6.signal,
+        action: v6.action,
+        inMarket: v6.inMarket,
+        momentum12m: v6.momentum12m,
+        momentum3m: v6.momentum3m,
+        // Technical analysis (educational only - shown in detail panel)
+        indicators: technical.indicators,
+        technicalScore: technical.score,
+        technicalSignal: technical.signal,
+        meta: technical.meta || {},
+        reasonText: { action: v6.signal, reasons: v6.reason },
         currentPrice: +current.toFixed(4),
         changePct: +changePct.toFixed(2),
         prices,
@@ -216,11 +231,15 @@ async function fetchAllRecommendations(assetType) {
         return true;
     });
 
-    deduped.sort((a, b) => b.score - a.score);
+    // Sort by: fresh signals first, then by inMarket+momentum
+    deduped.sort((a, b) => {
+        if (a.v6.freshSignal && !b.v6.freshSignal) return -1;
+        if (!a.v6.freshSignal && b.v6.freshSignal) return 1;
+        return b.momentum12m - a.momentum12m;
+    });
 
-    const alerts = deduped.filter(r =>
-        !['NEUTRAL', 'WEAK_BUY', 'WEAK_SELL'].includes(r.signal)
-    );
+    // Alerts are FRESH signals (momentum just changed direction)
+    const alerts = deduped.filter(r => r.v6.freshSignal);
 
     return { recommendations: deduped, alerts, lastUpdated: new Date().toISOString() };
 }
