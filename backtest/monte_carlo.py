@@ -20,7 +20,7 @@ REGIMES = [
     ("Mixed",    "mixed",    600, 100, 0.020),
 ]
 
-STRATEGIES = ["v2", "v4", "v6"]
+STRATEGIES = ["v4", "v6", "v7"]
 N_SEEDS = 30
 
 

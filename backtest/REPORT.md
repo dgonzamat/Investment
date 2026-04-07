@@ -116,6 +116,43 @@ Diseñé 3 versiones de V5 intentando mejorar V4:
 3. **Single asset**: No prueba portafolio diversificado
 4. **No hay slippage** explícito (solo comisión)
 
+## ⚠️ ACTUALIZACIÓN 2: V7 (ADM) - NO mejora a V6 en mi backtest
+
+Implementé **Accelerating Dual Momentum (ADM)** de Engineered Portfolio (2018),
+que claims un backtest de 150 años venciendo a GEM. Reglas:
+```
+score = ret_1m + ret_3m + ret_6m
+si score > 0: en mercado
+si score <= 0: en cash
+```
+
+### Resultados Monte Carlo V4 vs V6 vs V7
+
+| Régimen | V4 | V6 (Antonacci) | **V7 (ADM)** |
+|---|---|---|---|
+| Bull | 6.7% wins | **13.3%** | 13.3% |
+| Bear | 83% | **93.3%** | 83.3% |
+| Ranging | 10% | **16.7%** | 6.7% |
+| Crash | 96.7% | **100%** | 100% |
+| Breakout | **26.7%** | 10% | 10% |
+| Mixed | 53% | **56.7%** | 43.3% |
+| **OVERALL** | **46.1%** | **48.3%** ⭐ | **42.8%** |
+
+**V7 (ADM) PERDIÓ** contra V6 en mi backtest. Posibles razones:
+
+1. **ADM original es estrategia de 3-ETFs** (SPY/VINEX/VUSTX), no single-asset
+2. **Mi data sintética** no replica las características de 150 años de datos reales
+3. **Regímenes cortos** (400-600 días) no dan ventaja al timing más rápido
+4. **Mayor responsividad = más whipsaws** en ranging y mixed
+
+### Lección importante
+
+Las claims de papers académicos pueden no replicarse en frameworks distintos.
+V7 podría seguir siendo mejor que V6 en multi-asset rotation con datos reales,
+pero **en mi framework single-asset Monte Carlo, V6 sigue siendo el campeón**.
+
+**V6 sigue siendo el modelo activo en la app web.** No deployamos V7.
+
 ## ⚡ ACTUALIZACIÓN: V6 - Antonacci Absolute Momentum Filter
 
 Después de buscar en GitHub modelos validados, encontré **Gary Antonacci's GEM (Global Equities Momentum)** - una estrategia académicamente respaldada desde 1926. Implementé el componente core como **V6**:
