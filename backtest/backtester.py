@@ -7,6 +7,7 @@ from app.services.strategy_v2 import evaluate_signal_v2
 from app.services.strategy_v3 import evaluate_signal_v3
 from app.services.strategy_v4 import evaluate_signal_v4
 from app.services.strategy_v5 import evaluate_signal_v5
+from app.services.strategy_v6 import evaluate_signal_v6
 
 
 class Backtest:
@@ -61,6 +62,13 @@ class Backtest:
         return (result['action'], result.get('position_size', 0),
                 result.get('stop_price'), result.get('reason', ''))
 
+    def _step_v6(self, window, cash, shares, position_state):
+        result = evaluate_signal_v6(window, position_state)
+        # Track last_check_idx for monthly evaluation
+        self._last_v6_meta = {'last_check_idx': result.get('last_check_idx', len(window))}
+        return (result['action'], result.get('position_size', 0),
+                result.get('stop_price'), result.get('reason', ''))
+
     def run(self) -> dict:
         cash = self.initial_capital
         shares = 0
@@ -68,7 +76,9 @@ class Backtest:
         equity_curve = []
         position_state = None
 
-        if self.strategy == 'v5':
+        if self.strategy == 'v6':
+            step_fn = self._step_v6
+        elif self.strategy == 'v5':
             step_fn = self._step_v5
         elif self.strategy == 'v4':
             step_fn = self._step_v4
@@ -106,6 +116,9 @@ class Backtest:
                     # For v5: track which sub-strategy opened the position
                     if self.strategy == 'v5' and hasattr(self, '_last_v5_meta'):
                         position_state['opened_by'] = self._last_v5_meta['opened_by']
+                    # For v6: track monthly check index
+                    if self.strategy == 'v6' and hasattr(self, '_last_v6_meta'):
+                        position_state['last_check_idx'] = self._last_v6_meta['last_check_idx']
                     trades.append({
                         'date': current_date, 'action': 'BUY',
                         'price': current_price, 'shares': shares,
@@ -146,6 +159,9 @@ class Backtest:
                     position_state['highest_price'] = current_price
                 if stop:
                     position_state['stop_price'] = stop
+                # For v6: update last_check_idx
+                if self.strategy == 'v6' and hasattr(self, '_last_v6_meta'):
+                    position_state['last_check_idx'] = self._last_v6_meta['last_check_idx']
 
         # Final liquidation
         if shares > 0:

@@ -12,15 +12,15 @@ from backtest.backtester import Backtest
 
 
 REGIMES = [
-    ("Bull",     "bull",     250, 100, 0.018),
-    ("Bear",     "bear",     250, 100, 0.018),
-    ("Ranging",  "ranging",  250, 100, 0.015),
-    ("Crash",    "crash",    250, 100, 0.022),
-    ("Breakout", "breakout", 250, 100, 0.018),
-    ("Mixed",    "mixed",    400, 100, 0.020),
+    ("Bull",     "bull",     400, 100, 0.018),
+    ("Bear",     "bear",     400, 100, 0.018),
+    ("Ranging",  "ranging",  400, 100, 0.015),
+    ("Crash",    "crash",    400, 100, 0.022),
+    ("Breakout", "breakout", 400, 100, 0.018),
+    ("Mixed",    "mixed",    600, 100, 0.020),
 ]
 
-STRATEGIES = ["v2", "v4", "v5"]
+STRATEGIES = ["v2", "v4", "v6"]
 N_SEEDS = 30
 
 
