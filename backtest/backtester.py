@@ -4,6 +4,8 @@ Backtester supporting both v1 (score-based) and v2 (trend-following) strategies.
 import numpy as np
 from app.services.signal_generator import generate_composite_score
 from app.services.strategy_v2 import evaluate_signal_v2
+from app.services.strategy_v3 import evaluate_signal_v3
+from app.services.strategy_v4 import evaluate_signal_v4
 
 
 class Backtest:
@@ -41,6 +43,16 @@ class Backtest:
         return (result['action'], result.get('position_size', 0),
                 result.get('stop_price'), result.get('reason', ''))
 
+    def _step_v3(self, window, cash, shares, position_state):
+        result = evaluate_signal_v3(window, position_state)
+        return (result['action'], result.get('position_size', 0),
+                result.get('stop_price'), result.get('reason', ''))
+
+    def _step_v4(self, window, cash, shares, position_state):
+        result = evaluate_signal_v4(window, position_state)
+        return (result['action'], result.get('position_size', 0),
+                result.get('stop_price'), result.get('reason', ''))
+
     def run(self) -> dict:
         cash = self.initial_capital
         shares = 0
@@ -48,7 +60,14 @@ class Backtest:
         equity_curve = []
         position_state = None
 
-        step_fn = self._step_v2 if self.strategy == 'v2' else self._step_v1
+        if self.strategy == 'v4':
+            step_fn = self._step_v4
+        elif self.strategy == 'v3':
+            step_fn = self._step_v3
+        elif self.strategy == 'v2':
+            step_fn = self._step_v2
+        else:
+            step_fn = self._step_v1
 
         for i in range(self.warmup_days, len(self.ohlcv)):
             window = self.ohlcv[: i + 1]
@@ -92,6 +111,21 @@ class Backtest:
                 })
                 shares = 0
                 position_state = None
+
+            elif action == 'PYRAMID' and shares > 0:
+                # Add to position
+                add_capital = cash * size
+                add_shares = (add_capital * (1 - self.commission)) / current_price
+                add_cost = add_shares * current_price * (1 + self.commission)
+                if add_cost <= cash and add_shares > 0:
+                    # Weighted average entry price
+                    total_value = shares * position_state['entry_price'] + add_shares * current_price
+                    shares += add_shares
+                    cash -= add_cost
+                    position_state['entry_price'] = total_value / shares
+                    position_state['units_added'] = position_state.get('units_added', 0) + 1
+                    if stop:
+                        position_state['stop_price'] = stop
 
             elif action == 'HOLD' and shares > 0:
                 # Update highest price for trailing stop
