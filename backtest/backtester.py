@@ -6,6 +6,7 @@ from app.services.signal_generator import generate_composite_score
 from app.services.strategy_v2 import evaluate_signal_v2
 from app.services.strategy_v3 import evaluate_signal_v3
 from app.services.strategy_v4 import evaluate_signal_v4
+from app.services.strategy_v5 import evaluate_signal_v5
 
 
 class Backtest:
@@ -53,6 +54,13 @@ class Backtest:
         return (result['action'], result.get('position_size', 0),
                 result.get('stop_price'), result.get('reason', ''))
 
+    def _step_v5(self, window, cash, shares, position_state):
+        result = evaluate_signal_v5(window, position_state)
+        # Pass opened_by through position state via a side channel
+        self._last_v5_meta = {'opened_by': result.get('opened_by', 'v4')}
+        return (result['action'], result.get('position_size', 0),
+                result.get('stop_price'), result.get('reason', ''))
+
     def run(self) -> dict:
         cash = self.initial_capital
         shares = 0
@@ -60,7 +68,9 @@ class Backtest:
         equity_curve = []
         position_state = None
 
-        if self.strategy == 'v4':
+        if self.strategy == 'v5':
+            step_fn = self._step_v5
+        elif self.strategy == 'v4':
             step_fn = self._step_v4
         elif self.strategy == 'v3':
             step_fn = self._step_v3
@@ -93,6 +103,9 @@ class Backtest:
                         'entry_date': current_date,
                         'stop_price': stop or current_price * 0.92,
                     }
+                    # For v5: track which sub-strategy opened the position
+                    if self.strategy == 'v5' and hasattr(self, '_last_v5_meta'):
+                        position_state['opened_by'] = self._last_v5_meta['opened_by']
                     trades.append({
                         'date': current_date, 'action': 'BUY',
                         'price': current_price, 'shares': shares,
