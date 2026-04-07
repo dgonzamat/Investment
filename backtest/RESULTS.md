@@ -1,123 +1,48 @@
 
-======================================================================
-  INVESTPRO BACKTEST - HEURISTIC VALIDATION
-  Strategy: BUY when score >= 65, SELL when score <= 35
-  Capital: $10,000 | Commission: 0.1% per trade
-======================================================================
+========================================================================================
+  INVESTPRO BACKTEST - V1 (mean reversion) vs V2 (trend following) vs Buy&Hold
+  Capital: $10,000 | Commission: 0.1%
+========================================================================================
 
-======================================================================
-  SCENARIO: Bull Market
-  Regime: bull | Days: 365 | Vol: 1.8%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $14,051.37
-  Strategy Return:    +40.51%
-  Buy & Hold Return:  +80.99%
-  Outperformance:     -40.48%
-  Number of Trades:   3
-  Win Rate:           66.7%
-  Avg Win:            +20.67%
-  Avg Loss:           0.00%
-  Max Drawdown:       -11.13%
-  Sharpe Ratio:       1.24
+  Running Bull Market... v1=+40.5% v2=+31.8% B&H=+75.2%
 
-======================================================================
-  SCENARIO: Bear Market
-  Regime: bear | Days: 365 | Vol: 1.8%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $9,975.42
-  Strategy Return:    -0.25%
-  Buy & Hold Return:  -42.14%
-  Outperformance:     +41.89%
-  Number of Trades:   2
-  Win Rate:           50.0%
-  Avg Win:            +5.00%
-  Avg Loss:           -4.61%
-  Max Drawdown:       -13.40%
-  Sharpe Ratio:       0.04
+  Running Bear Market... v1=-0.2% v2=-12.9% B&H=-38.8%
 
-======================================================================
-  SCENARIO: Ranging Market
-  Regime: ranging | Days: 365 | Vol: 1.5%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $8,995.27
-  Strategy Return:    -10.05%
-  Buy & Hold Return:  +7.73%
-  Outperformance:     -17.78%
-  Number of Trades:   6
-  Win Rate:           16.7%
-  Avg Win:            +4.68%
-  Avg Loss:           -2.75%
-  Max Drawdown:       -17.29%
-  Sharpe Ratio:       -0.80
+  Running Ranging Market... v1=-10.1% v2=-6.4% B&H=+5.0%
 
-======================================================================
-  SCENARIO: Crash + Recovery
-  Regime: crash | Days: 365 | Vol: 2.2%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $7,869.96
-  Strategy Return:    -21.30%
-  Buy & Hold Return:  -54.51%
-  Outperformance:     +33.21%
-  Number of Trades:   2
-  Win Rate:           0.0%
-  Avg Win:            0.00%
-  Avg Loss:           -10.93%
-  Max Drawdown:       -26.76%
-  Sharpe Ratio:       -1.14
+  Running Crash + Recovery... v1=-21.3% v2=+12.0% B&H=-54.7%
 
-======================================================================
-  SCENARIO: Breakout Pattern
-  Regime: breakout | Days: 365 | Vol: 1.8%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $11,084.25
-  Strategy Return:    +10.84%
-  Buy & Hold Return:  +47.84%
-  Outperformance:     -37.00%
-  Number of Trades:   9
-  Win Rate:           22.2%
-  Avg Win:            +18.60%
-  Avg Loss:           -2.79%
-  Max Drawdown:       -25.46%
-  Sharpe Ratio:       0.54
+  Running Breakout Pattern... v1=+11.2% v2=+15.2% B&H=+50.5%
 
-======================================================================
-  SCENARIO: Mixed (Realistic)
-  Regime: mixed | Days: 730 | Vol: 2.0%
-======================================================================
-  Initial Capital:    $10,000.00
-  Final Capital:      $11,914.55
-  Strategy Return:    +19.15%
-  Buy & Hold Return:  +91.57%
-  Outperformance:     -72.42%
-  Number of Trades:   4
-  Win Rate:           75.0%
-  Avg Win:            +10.37%
-  Avg Loss:           -10.26%
-  Max Drawdown:       -34.75%
-  Sharpe Ratio:       0.39
+  Running Mixed (2 years)... v1=+19.1% v2=+115.8% B&H=+101.1%
 
-======================================================================
-  SUMMARY
-======================================================================
-  Scenario                 Strategy        B&H       Diff   Trades  WinRate
-  ---------------------- ---------- ---------- ---------- -------- --------
-  Bull Market                40.51%     80.99%    -40.48% ✗        3    66.7%
-  Bear Market                -0.25%    -42.14%    +41.89% ✓        2    50.0%
-  Ranging Market            -10.05%      7.73%    -17.78% ✗        6    16.7%
-  Crash + Recovery          -21.30%    -54.51%    +33.21% ✓        2     0.0%
-  Breakout Pattern           10.84%     47.84%    -37.00% ✗        9    22.2%
-  Mixed (Realistic)          19.15%     91.57%    -72.42% ✗        4    75.0%
-  ---------------------- ---------- ---------- ---------- -------- --------
-  AVERAGE                     6.48%     21.91%    -15.43%
+========================================================================================
+  Scenario                      V1        V2       B&H   V2 vs B&H   V2 Trades     V2 Win%
+  --------------------------------------------------------------------------------------
+  Bull Market               40.51%    31.76%    75.19%    -43.43% ✗          3      66.7%
+  Bear Market               -0.25%   -12.86%   -38.76%    +25.90% ✓          4      25.0%
+  Ranging Market           -10.05%    -6.41%     4.97%    -11.38% ✗          6      16.7%
+  Crash + Recovery         -21.30%    12.03%   -54.71%    +66.74% ✓          3      66.7%
+  Breakout Pattern          11.22%    15.17%    50.53%    -35.36% ✗          6      16.7%
+  Mixed (2 years)           19.15%   115.84%   101.06%    +14.78% ✓          5      60.0%
+  --------------------------------------------------------------------------------------
+  AVERAGE                    6.55%    25.92%    23.05%     +2.88%
 
-======================================================================
-  CONCLUSIONS
-======================================================================
-  Strategy beat Buy & Hold in 2/6 scenarios
-  Average outperformance: -15.43%
+========================================================================================
+  V2 RISK METRICS PER SCENARIO
+========================================================================================
+  Scenario                  Max DD    Sharpe     Avg Win    Avg Loss
+  ------------------------------------------------------------------
+  Bull Market              -11.86%      1.19     +22.33%      -7.87%
+  Bear Market              -18.94%     -0.99      +2.60%      -5.70%
+  Ranging Market           -15.12%     -0.46     +10.75%      -3.22%
+  Crash + Recovery         -12.73%      0.74     +12.86%      -6.85%
+  Breakout Pattern         -15.01%      0.87     +41.64%      -2.88%
+  Mixed (2 years)          -18.37%      1.61     +41.69%      -5.31%
+
+========================================================================================
+  V2 STRATEGY beats Buy & Hold in 3/6 scenarios
+  V2 average outperformance: +2.88%
+  V1 average outperformance: -16.50%
+  V2 improvement over V1:    +19.38%
 

@@ -1,5 +1,5 @@
 """
-Run backtest across multiple market regimes and report results.
+Run backtest comparing v1 (score-based) vs v2 (trend-following) vs Buy&Hold.
 """
 import sys
 from pathlib import Path
@@ -9,82 +9,94 @@ from backtest.historical_data import generate_regime_data
 from backtest.backtester import Backtest
 
 
-def format_pct(v):
-    s = f"{v:+.2f}%" if v != 0 else "0.00%"
-    return s
+def fmt(v):
+    return f"{v:+.2f}%"
 
 
-def run_scenario(name, regime, days, start_price, volatility, seed):
-    print(f"\n{'='*70}")
-    print(f"  SCENARIO: {name}")
-    print(f"  Regime: {regime} | Days: {days} | Vol: {volatility*100:.1f}%")
-    print('='*70)
+def run_scenario(name, regime, days, price, vol, seed):
+    data = generate_regime_data(name, days, price, regime, vol, seed)
 
-    data = generate_regime_data(name, days, start_price, regime, volatility, seed)
-    bt = Backtest(data, initial_capital=10000, buy_threshold=65, sell_threshold=35)
-    result = bt.run()
+    v1 = Backtest(data, strategy='v1').run()
+    v2 = Backtest(data, strategy='v2').run()
 
-    print(f"  Initial Capital:    ${result['initial_capital']:,.2f}")
-    print(f"  Final Capital:      ${result['final_capital']:,.2f}")
-    print(f"  Strategy Return:    {format_pct(result['strategy_return_pct'])}")
-    print(f"  Buy & Hold Return:  {format_pct(result['buy_hold_return_pct'])}")
-    print(f"  Outperformance:     {format_pct(result['outperformance_pct'])}")
-    print(f"  Number of Trades:   {result['num_trades']}")
-    print(f"  Win Rate:           {result['win_rate_pct']:.1f}%")
-    print(f"  Avg Win:            {format_pct(result['avg_win_pct'])}")
-    print(f"  Avg Loss:           {format_pct(result['avg_loss_pct'])}")
-    print(f"  Max Drawdown:       -{result['max_drawdown_pct']:.2f}%")
-    print(f"  Sharpe Ratio:       {result['sharpe_ratio']:.2f}")
-    return result
+    return {'name': name, 'v1': v1, 'v2': v2}
 
 
 def main():
-    print("\n" + "="*70)
-    print("  INVESTPRO BACKTEST - HEURISTIC VALIDATION")
-    print("  Strategy: BUY when score >= 65, SELL when score <= 35")
-    print("  Capital: $10,000 | Commission: 0.1% per trade")
-    print("="*70)
+    print("\n" + "=" * 88)
+    print("  INVESTPRO BACKTEST - V1 (mean reversion) vs V2 (trend following) vs Buy&Hold")
+    print("  Capital: $10,000 | Commission: 0.1%")
+    print("=" * 88)
 
     scenarios = [
-        ("Bull Market", "bull", 365, 100, 0.018, 42),
-        ("Bear Market", "bear", 365, 100, 0.018, 43),
-        ("Ranging Market", "ranging", 365, 100, 0.015, 44),
-        ("Crash + Recovery", "crash", 365, 100, 0.022, 45),
-        ("Breakout Pattern", "breakout", 365, 100, 0.018, 46),
-        ("Mixed (Realistic)", "mixed", 730, 100, 0.020, 47),
+        ("Bull Market",        "bull",     365, 100, 0.018, 42),
+        ("Bear Market",        "bear",     365, 100, 0.018, 43),
+        ("Ranging Market",     "ranging",  365, 100, 0.015, 44),
+        ("Crash + Recovery",   "crash",    365, 100, 0.022, 45),
+        ("Breakout Pattern",   "breakout", 365, 100, 0.018, 46),
+        ("Mixed (2 years)",    "mixed",    730, 100, 0.020, 47),
     ]
 
     results = []
     for name, regime, days, price, vol, seed in scenarios:
+        print(f"\n  Running {name}...", end=' ', flush=True)
         r = run_scenario(name, regime, days, price, vol, seed)
-        results.append((name, r))
+        results.append(r)
+        print(f"v1={r['v1']['strategy_return_pct']:+.1f}% v2={r['v2']['strategy_return_pct']:+.1f}% B&H={r['v1']['buy_hold_return_pct']:+.1f}%")
 
-    # Summary table
-    print("\n" + "="*70)
-    print("  SUMMARY")
-    print("="*70)
-    print(f"  {'Scenario':<22} {'Strategy':>10} {'B&H':>10} {'Diff':>10} {'Trades':>8} {'WinRate':>8}")
-    print(f"  {'-'*22} {'-'*10} {'-'*10} {'-'*10} {'-'*8} {'-'*8}")
-    total_strategy = 0
-    total_bh = 0
-    for name, r in results:
-        diff = r['outperformance_pct']
+    # Detailed table
+    print("\n" + "=" * 88)
+    print(f"  {'Scenario':<22}{'V1':>10}{'V2':>10}{'B&H':>10}{'V2 vs B&H':>12}{'V2 Trades':>12}{'V2 Win%':>12}")
+    print("  " + "-" * 86)
+
+    sum_v1 = sum_v2 = sum_bh = 0
+    v2_wins = 0
+    for r in results:
+        v1 = r['v1']
+        v2 = r['v2']
+        bh = v1['buy_hold_return_pct']
+        diff = v2['strategy_return_pct'] - bh
         marker = " ✓" if diff > 0 else " ✗"
-        print(f"  {name:<22} {r['strategy_return_pct']:>9.2f}% {r['buy_hold_return_pct']:>9.2f}% {diff:>+9.2f}%{marker} {r['num_trades']:>8} {r['win_rate_pct']:>7.1f}%")
-        total_strategy += r['strategy_return_pct']
-        total_bh += r['buy_hold_return_pct']
+        print(f"  {r['name']:<22}"
+              f"{v1['strategy_return_pct']:>9.2f}%"
+              f"{v2['strategy_return_pct']:>9.2f}%"
+              f"{bh:>9.2f}%"
+              f"{diff:>+10.2f}%{marker}"
+              f"{v2['num_trades']:>11}"
+              f"{v2['win_rate_pct']:>10.1f}%")
+        sum_v1 += v1['strategy_return_pct']
+        sum_v2 += v2['strategy_return_pct']
+        sum_bh += bh
+        if diff > 0:
+            v2_wins += 1
 
-    print(f"  {'-'*22} {'-'*10} {'-'*10} {'-'*10} {'-'*8} {'-'*8}")
-    avg_strategy = total_strategy / len(results)
-    avg_bh = total_bh / len(results)
-    print(f"  {'AVERAGE':<22} {avg_strategy:>9.2f}% {avg_bh:>9.2f}% {avg_strategy - avg_bh:>+9.2f}%")
+    n = len(results)
+    print("  " + "-" * 86)
+    print(f"  {'AVERAGE':<22}"
+          f"{sum_v1/n:>9.2f}%"
+          f"{sum_v2/n:>9.2f}%"
+          f"{sum_bh/n:>9.2f}%"
+          f"{(sum_v2-sum_bh)/n:>+10.2f}%")
 
-    print("\n" + "="*70)
-    print("  CONCLUSIONS")
-    print("="*70)
-    wins = sum(1 for _, r in results if r['outperformance_pct'] > 0)
-    print(f"  Strategy beat Buy & Hold in {wins}/{len(results)} scenarios")
-    print(f"  Average outperformance: {avg_strategy - avg_bh:+.2f}%")
+    # Risk metrics for v2
+    print("\n" + "=" * 88)
+    print("  V2 RISK METRICS PER SCENARIO")
+    print("=" * 88)
+    print(f"  {'Scenario':<22}{'Max DD':>10}{'Sharpe':>10}{'Avg Win':>12}{'Avg Loss':>12}")
+    print("  " + "-" * 66)
+    for r in results:
+        v2 = r['v2']
+        print(f"  {r['name']:<22}"
+              f"{-v2['max_drawdown_pct']:>9.2f}%"
+              f"{v2['sharpe_ratio']:>10.2f}"
+              f"{v2['avg_win_pct']:>+11.2f}%"
+              f"{v2['avg_loss_pct']:>+11.2f}%")
+
+    print("\n" + "=" * 88)
+    print(f"  V2 STRATEGY beats Buy & Hold in {v2_wins}/{n} scenarios")
+    print(f"  V2 average outperformance: {(sum_v2-sum_bh)/n:+.2f}%")
+    print(f"  V1 average outperformance: {(sum_v1-sum_bh)/n:+.2f}%")
+    print(f"  V2 improvement over V1:    {(sum_v2-sum_v1)/n:+.2f}%")
     print()
 
 
